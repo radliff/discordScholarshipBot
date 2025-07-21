@@ -13,15 +13,27 @@ client = discord.Client(intents=intents)
 def fetch_scholarship_data():
     url = "https://nsbe.org/scholarships/"
     response = requests.get(url)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, "html.parser")
-        scholarships = []
-        for link in soup.find_all("a"):
-            text = link.get_text(strip=True)
-            href = link.get("href")
-            if href and ("scholarship" in href.lower() or "scholarship" in text.lower()):
-                scholarships.append((text, href))
-        return scholarships
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    scholarships = []
+    cards = soup.select("div.search-results-wrapper_result-card")
+
+    for card in cards:
+        link_tag = card.select_one("h3 a")
+        if not link_tag:
+            continue
+    
+        name = link_tag.get_text(strip=True)
+        href = link_tag.get("href")
+
+        if href and href.startswith("/"):
+            href = "https://nsbe.org" + href
+        if not href.startswith("https://nsbe.org/scholarship/"):
+            continue
+
+        scholarships.append((name, href))
+
+    return scholarships
 
 @client.event
 async def on_ready():
