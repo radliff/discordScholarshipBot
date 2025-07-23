@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+CHANNEL_ID = int(os.getenv("ALLOWED_CHANNEL_ID"))
 intents = discord.Intents.default()
 # so scholarship bot can read ! commands
 intents.message_content = True
@@ -47,9 +47,14 @@ async def on_ready():
 async def send_scholarships(ctx):
     scholarships = fetch_scholarship_data()
 
+    if ctx.channel.id != CHANNEL_ID:
+        await ctx.send("❌ This command can only be used in the #scholarships channel.")
+        return
+    
     if not scholarships:
         await ctx.send("❌ No scholarships found at the moment.")
         return
+    
     embed = discord.Embed(title="📢 Latest NSBE Scholarships", color=0x1ABC9C)
     for name, url in scholarships[:5]:
         embed.add_field(name=name, value=f"[Apply here]({url})", inline=False)
