@@ -2,6 +2,7 @@ import requests
 import os
 import discord
 from discord.ext import commands
+from discord import Embed, Interaction, ui
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 
@@ -12,6 +13,42 @@ intents = discord.Intents.default()
 # so scholarship bot can read ! commands
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+class ScholarshipView(ui.View):
+    def __init__(self, scholarships, chunk_size=5):
+        super().__init__(timeout=60)
+        self.scholarships = scholarships
+        self.chunk_size = chunk_size
+        self.current_page = 0
+    
+    def format_page(self):
+        start = self.current_page + self.chunk_size
+        end = start + self.chunk_size
+        embed = Embed(
+            title=f"📢 NSBE Scholarships (Page {self.current_page + 1})",
+            color=0x1ABC9C
+        )
+        for name, url in self.scholarships[start:end]:
+            embed.add_field(name=name, value=f"[Apply here]({url})", inline=False)
+        return embed
+    
+    @ui.button(label="⬅️ Back", style=discord.ButtonStyle.secondary, disabled=True)
+    async def back_button(self, interaction: Interaction, button: ui.Button):
+        self.current_page -= 1
+        self.update_button_states()
+        await interaction.response.edit_message(embed=self.format_page(), view=self)
+    
+    @ui.button(label="➡️ Next", style=discord.ButtonStyle.primary)
+    async def next_button(self, interaction: Interaction, button: ui.Button):
+        self.current_page += 1
+        self.update_button_states()
+        await interaction.response.edit_message(embed=self.format_page(), view=self)
+    
+    def update_button_states(self):
+        # do this b/c there might be a remainder - this way we don't have to add an if statement to check
+        total_pages = (len(self.scholarships) - 1) // self.chunk_size + 1
+        self.back_button.disabled = self.current_page == 0
+        self.next_button.disabled = self.current_page >= total_pages - 1
 
 def fetch_scholarship_data():
     url = "https://nsbe.org/scholarships/"
@@ -45,21 +82,17 @@ async def on_ready():
 
 @bot.command(name="scholarships")
 async def send_scholarships(ctx):
-    scholarships = fetch_scholarship_data()
-
     if ctx.channel.id != CHANNEL_ID:
         await ctx.send("❌ This command can only be used in the #scholarships channel.")
         return
-    
-    if not scholarships:
-        await ctx.send("❌ No scholarships found at the moment.")
-        return
-    
-    embed = discord.Embed(title="📢 Latest NSBE Scholarships", color=0x1ABC9C)
-    for name, url in scholarships[:5]:
-        embed.add_field(name=name, value=f"[Apply here]({url})", inline=False)
 
-    await ctx.send(embed=embed)
+    scholarships = fetch_scholarship_data()
+    if not scholarships:
+        await ctx.send("❌ No scholarships found.")
+        return
+
+    view = ScholarshipView(scholarships)
+    await ctx.send(embed=view.format_page(), view=view)
 
 
 
