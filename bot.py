@@ -1,14 +1,17 @@
 import requests
 import os
 import discord
+from discord.ext import commands
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 
 load_dotenv()
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 intents = discord.Intents.default()
-client = discord.Client(intents=intents)
+# so scholarship bot can read ! commands
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 def fetch_scholarship_data():
     url = "https://nsbe.org/scholarships/"
@@ -16,7 +19,7 @@ def fetch_scholarship_data():
     soup = BeautifulSoup(response.text, "html.parser")
 
     scholarships = []
-    cards = soup.select("div.search-results-wrapper_result-card")
+    cards = soup.select("div.search-results-wrapper__result-card")
 
     for card in cards:
         link_tag = card.select_one("h3 a")
@@ -35,20 +38,26 @@ def fetch_scholarship_data():
 
     return scholarships
 
-@client.event
+@bot.event
 async def on_ready():
-    print(f"Logged in as {client.user}")
-    channel = client.get_channel(CHANNEL_ID)
+    print("Loaded token prefix:", TOKEN[:10])
+    print(f"✅ Logged in as {bot.user}")
+
+@bot.command(name="scholarships")
+async def send_scholarships(ctx):
     scholarships = fetch_scholarship_data()
 
     if not scholarships:
-        await channel.send("No scholarships found right now")
-    else:
-        await channel.send("📢 **Latest NSBE Scholarships:**")
-        for name, url in scholarships[:5]:
-            await channel.send(f"🔗 **{name}**\n{url}")
-    await client.close()
+        await ctx.send("❌ No scholarships found at the moment.")
+        return
+    embed = discord.Embed(title="📢 Latest NSBE Scholarships", color=0x1ABC9C)
+    for name, url in scholarships[:5]:
+        embed.add_field(name=name, value=f"[Apply here]({url})", inline=False)
+
+    await ctx.send(embed=embed)
+
 
 
 if __name__ == "__main__":
-    client.run(TOKEN)
+    
+    bot.run(TOKEN)
