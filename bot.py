@@ -10,19 +10,21 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 CHANNEL_ID = int(os.getenv("ALLOWED_CHANNEL_ID"))
 intents = discord.Intents.default()
+
 # so scholarship bot can read ! commands
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 class ScholarshipView(ui.View):
-    def __init__(self, scholarships, chunk_size=5):
-        super().__init__(timeout=60)
+    def __init__(self, scholarships, user_id, chunk_size=5):
+        super().__init__(timeout=None)
         self.scholarships = scholarships
+        self.user_id = user_id
         self.chunk_size = chunk_size
         self.current_page = 0
     
     def format_page(self):
-        start = self.current_page + self.chunk_size
+        start = self.current_page * self.chunk_size
         end = start + self.chunk_size
         embed = Embed(
             title=f"📢 NSBE Scholarships (Page {self.current_page + 1})",
@@ -31,6 +33,13 @@ class ScholarshipView(ui.View):
         for name, url in self.scholarships[start:end]:
             embed.add_field(name=name, value=f"[Apply here]({url})", inline=False)
         return embed
+    
+    # only user who runs !scholarships command can use buttons
+    async def interaction_check(self, interaction: Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("You can't use this menu. Try '!scholarships' yourself!", ephemeral=True)
+            return False
+        return True
     
     @ui.button(label="⬅️ Back", style=discord.ButtonStyle.secondary, disabled=True)
     async def back_button(self, interaction: Interaction, button: ui.Button):
@@ -75,6 +84,7 @@ def fetch_scholarship_data():
 
     return scholarships
 
+# this is to test what's being loaded from the .env file
 @bot.event
 async def on_ready():
     print("Loaded token prefix:", TOKEN[:10])
@@ -82,6 +92,7 @@ async def on_ready():
 
 @bot.command(name="scholarships")
 async def send_scholarships(ctx):
+    # only posted in #scholarships channel
     if ctx.channel.id != CHANNEL_ID:
         await ctx.send("❌ This command can only be used in the #scholarships channel.")
         return
@@ -91,7 +102,8 @@ async def send_scholarships(ctx):
         await ctx.send("❌ No scholarships found.")
         return
 
-    view = ScholarshipView(scholarships)
+    # UI is rendered & shown to user
+    view = ScholarshipView(scholarships, user_id=ctx.author.id)
     await ctx.send(embed=view.format_page(), view=view)
 
 
